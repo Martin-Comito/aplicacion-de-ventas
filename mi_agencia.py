@@ -7,10 +7,12 @@ import pytz
 import time as time_module
 import extra_streamlit_components as stx
 
-# CONFIGURACIÓN DE LA PÁGINA 
+# --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="DevStudio Manager", page_icon="💼", layout="wide")
 
-# CONEXIONES Y SECRETOS
+# ==============================================================================
+# 🔐 CONEXIONES Y SECRETOS
+# ==============================================================================
 
 # 1. CONEXIÓN SUPABASE
 try:
@@ -27,12 +29,14 @@ try:
     api_key_final = st.secrets["google"]["api_key"]
     genai.configure(api_key=api_key_final)
 except:
-    pass 
+    pass # Si falla aquí, se mostrará el aviso en la barra lateral
 
 # 3. GESTOR DE COOKIES (Para mantener la sesión abierta)
 cookie_manager = stx.CookieManager()
 
-#  LÓGICA DE USUARIOS Y SESIÓN
+# ==============================================================================
+# 🧠 LÓGICA DE USUARIOS Y SESIÓN
+# ==============================================================================
 
 def login_check(user, password):
     try:
@@ -58,7 +62,7 @@ if st.session_state.usuario is None:
     user_cookie = get_user_from_cookie()
     if user_cookie: st.session_state.usuario = user_cookie
 
-# PANTALLA DE LOGIN 
+# --- PANTALLA DE LOGIN ---
 if st.session_state.usuario is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
@@ -79,7 +83,9 @@ if st.session_state.usuario is None:
                 else: st.error("Credenciales incorrectas")
     st.stop()
 
-# APLICACIÓN PRINCIPAL
+# ==============================================================================
+# 🖥️ APLICACIÓN PRINCIPAL
+# ==============================================================================
 USER = st.session_state.usuario
 ID_USER = USER['id']
 ROL = USER['rol']
@@ -100,7 +106,9 @@ with st.sidebar:
         cookie_manager.delete('agencia_user')
         st.session_state.usuario = None; st.rerun()
 
+# ------------------------------------------------------------------------------
 # 1. CLIENTES
+# ------------------------------------------------------------------------------
 if menu == "📇 Mis Clientes":
     st.header("📇 Gestión de Clientes")
     with st.expander("➕ Agregar Nuevo Cliente"):
@@ -143,7 +151,9 @@ if menu == "📇 Mis Clientes":
                     supabase.table("agencia_clientes").delete().eq("id", c['id']).execute(); st.rerun()
     else: st.info("Sin clientes.")
 
+# ------------------------------------------------------------------------------
 # 2. AGENDA
+# ------------------------------------------------------------------------------
 elif menu == "📅 Agenda":
     st.header("📅 Agenda")
     if ROL == 'DIRECTOR': cli = supabase.table("agencia_clientes").select("id, nombre, empresa").execute()
@@ -174,7 +184,9 @@ elif menu == "📅 Agenda":
             usr = f" | {ci['agencia_usuarios']['nombre_completo']}" if ROL=='DIRECTOR' and 'agencia_usuarios' in ci else ""
             st.info(f"🕒 {dtf} | {ci['agencia_clientes']['nombre']}{usr} - {ci['motivo']}")
 
+# ------------------------------------------------------------------------------
 # 3. IA (USANDO GEMINI PRO ESTÁNDAR)
+# ------------------------------------------------------------------------------
 elif menu == "🧠 Crear Proyecto (IA)":
     st.header("✨ Consultor IA")
     if ROL == 'DIRECTOR': cli = supabase.table("agencia_clientes").select("id, nombre, empresa, rubro").execute()
@@ -195,7 +207,7 @@ elif menu == "🧠 Crear Proyecto (IA)":
                     try:
                         p = f"Actúa como Consultor de Software. Cliente: {dat['rubro']}. Problema: {prob}. Enfoque: {enf}. Crea una propuesta comercial (Título, Diagnóstico, Solución, Funciones, Beneficios)."
                         
-                        # USAMOS GEMINI PRO 
+                        # --- USAMOS GEMINI PRO (Versión estable) ---
                         model = genai.GenerativeModel('gemini-pro')
                         
                         res = model.generate_content(p)
@@ -216,7 +228,9 @@ elif menu == "🧠 Crear Proyecto (IA)":
                     st.success("Guardado"); del st.session_state.res_ia
     else: st.warning("Carga clientes primero")
 
+# ------------------------------------------------------------------------------
 # 4. PROYECTOS
+# ------------------------------------------------------------------------------
 elif menu == "📂 Estado de Proyectos":
     st.header("📂 Pipeline")
     if ROL == 'DIRECTOR': proys = supabase.table("agencia_proyectos").select("*, agencia_clientes(empresa), agencia_usuarios(nombre_completo)").order("created_at", desc=True).execute()
