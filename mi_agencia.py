@@ -11,7 +11,7 @@ import extra_streamlit_components as stx
 st.set_page_config(page_title="DevStudio Manager", page_icon="💼", layout="wide")
 
 # ==============================================================================
-# 🔐 ZONA DE CONEXIONES (AQUÍ ESTÁ EL ARREGLO)
+# 🔐 ZONA DE CONEXIONES
 # ==============================================================================
 
 # 1. CONEXIÓN SUPABASE
@@ -20,19 +20,16 @@ try:
     key = st.secrets["supabase"]["key"]
     supabase = create_client(url, key)
 except:
-    st.error("⚠️ Error: Falló la conexión a Supabase.")
+    st.error("⚠️ Error: Falló la conexión a Supabase. Revisa los Secrets.")
     st.stop()
 
-# 2. CONEXIÓN GOOGLE IA (CON LIMPIEZA AUTOMÁTICA)
+# 2. CONEXIÓN GOOGLE IA (CON LIMPIEZA DE CLAVE)
 api_key_final = None
 try:
-    # Leemos la clave de los secretos
-    raw_key = st.secrets["google"]["api_key"]
-    
-    # .strip() ELIMINA ESPACIOS O SALTOS DE LÍNEA INVISIBLES
-    api_key_final = raw_key.strip() 
-    
-    genai.configure(api_key=api_key_final)
+    if "google" in st.secrets and "api_key" in st.secrets["google"]:
+        raw_key = st.secrets["google"]["api_key"]
+        api_key_final = raw_key.strip() # Limpia espacios invisibles
+        genai.configure(api_key=api_key_final)
 except:
     pass 
 
@@ -97,14 +94,19 @@ with st.sidebar:
     st.divider()
     menu = st.radio("Menú", ["📇 Mis Clientes", "📅 Agenda", "🧠 Crear Proyecto (IA)", "📂 Estado de Proyectos"])
     st.divider()
+    
+    # Estado de la IA
     if api_key_final: st.success("🤖 IA Activa")
     else: st.warning("⚠️ IA Inactiva")
+    
     st.divider()
     if st.button("Cerrar Sesión"):
         cookie_manager.delete('agencia_user')
         st.session_state.usuario = None; st.rerun()
 
+# ------------------------------------------------------------------------------
 # 1. CLIENTES
+# ------------------------------------------------------------------------------
 if menu == "📇 Mis Clientes":
     st.header("📇 Gestión de Clientes")
     with st.expander("➕ Agregar Nuevo Cliente"):
@@ -145,7 +147,9 @@ if menu == "📇 Mis Clientes":
                     supabase.table("agencia_clientes").delete().eq("id", c['id']).execute(); st.rerun()
     else: st.info("Sin clientes.")
 
+# ------------------------------------------------------------------------------
 # 2. AGENDA
+# ------------------------------------------------------------------------------
 elif menu == "📅 Agenda":
     st.header("📅 Agenda")
     if ROL == 'DIRECTOR': cli = supabase.table("agencia_clientes").select("id, nombre, empresa").execute()
@@ -176,35 +180,65 @@ elif menu == "📅 Agenda":
             usr = f" | {ci['agencia_usuarios']['nombre_completo']}" if ROL=='DIRECTOR' and 'agencia_usuarios' in ci else ""
             st.info(f"🕒 {dtf} | {ci['agencia_clientes']['nombre']}{usr} - {ci['motivo']}")
 
-# 3. IA (USANDO MODELO ESTÁNDAR PARA EVITAR ERROR 404)
+# ------------------------------------------------------------------------------
+# 3. IA (CON SELECTOR AUTOMÁTICO PARA EVITAR ERRORES)
+# ------------------------------------------------------------------------------
 elif menu == "🧠 Crear Proyecto (IA)":
     st.header("✨ Consultor IA")
+    
+    if not api_key_final:
+        st.error("⚠️ La IA no está conectada. Revisa la barra lateral.")
+        st.stop()
+
+    # --- LÓGICA DE DETECCIÓN DE MODELOS ---
+    try:
+        modelos_disponibles = []
+        # Consultamos a Google qué modelos tiene esta API Key
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                modelos_disponibles.append(m.name)
+        
+        # Si la lista está vacía, usamos los básicos por defecto
+        if not modelos_disponibles:
+            modelos_disponibles = ["models/gemini-1.5-flash", "models/gemini-pro"]
+    except Exception as e:
+        # En caso de error de red, usamos fallback
+        st.warning(f"No se pudo listar modelos automáticos. Usando lista manual.")
+        modelos_disponibles = ["models/gemini-1.5-flash", "models/gemini-pro"]
+
     if ROL == 'DIRECTOR': cli = supabase.table("agencia_clientes").select("id, nombre, empresa, rubro").execute()
     else: cli = supabase.table("agencia_clientes").select("id, nombre, empresa, rubro").eq("usuario_id", ID_USER).execute()
     mapa = {f"{c['nombre']} ({c['empresa']})": c for c in cli.data} if cli.data else {}
 
     if mapa:
-        sel = st.selectbox("Cliente", list(mapa.keys()))
+        c_mod, c_cli = st.columns([1, 2])
+        
+        # EL USUARIO ELIGE EL MODELO AQUÍ
+        modelo_seleccionado = c_mod.selectbox("🤖 Modelo IA", modelos_disponibles, index=0)
+        
+        sel = c_cli.selectbox("Cliente", list(mapa.keys()))
         dat = mapa[sel]
-        prob = st.text_area("Problema del cliente")
+        
+        st.divider()
+        prob = st.text_area("Problema del cliente", height=100)
         c1, c2 = st.columns(2)
         enf = c1.selectbox("Enfoque", ["Eficiencia", "Control", "Ventas", "Modernización"])
         lim = c2.date_input("Fecha Entrega")
 
         if st.button("🚀 Generar Propuesta", type="primary"):
-            if api_key_final and prob:
-                with st.spinner("Pensando..."):
+            if prob:
+                with st.spinner(f"Pensando con {modelo_seleccionado}..."):
                     try:
                         p = f"Actúa como Consultor de Software. Cliente: {dat['rubro']}. Problema: {prob}. Enfoque: {enf}. Crea una propuesta comercial (Título, Diagnóstico, Solución, Funciones, Beneficios)."
                         
-                        # AHORA SÍ: Usamos el modelo rápido porque ya tenemos la librería 0.8.6
-                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        # Usamos el modelo seleccionado de la lista
+                        model = genai.GenerativeModel(modelo_seleccionado)
                         
                         res = model.generate_content(p)
                         st.session_state.res_ia = res.text
                         st.session_state.prob_ia = prob
                     except Exception as e: st.error(f"Error IA: {e}")
-            else: st.warning("Falta API Key o Problema")
+            else: st.warning("Falta detallar el problema")
 
         if 'res_ia' in st.session_state:
             with st.container(border=True):
@@ -218,7 +252,9 @@ elif menu == "🧠 Crear Proyecto (IA)":
                     st.success("Guardado"); del st.session_state.res_ia
     else: st.warning("Carga clientes primero")
 
+# ------------------------------------------------------------------------------
 # 4. PROYECTOS
+# ------------------------------------------------------------------------------
 elif menu == "📂 Estado de Proyectos":
     st.header("📂 Pipeline")
     if ROL == 'DIRECTOR': proys = supabase.table("agencia_proyectos").select("*, agencia_clientes(empresa), agencia_usuarios(nombre_completo)").order("created_at", desc=True).execute()
@@ -252,4 +288,3 @@ elif menu == "📂 Estado de Proyectos":
                         supabase.table("agencia_proyectos").update({"problema_cliente": np, "solucion_ia": ns}).eq("id", p['id']).execute()
                         st.session_state[k]=False; st.rerun()
     else: st.info("No hay proyectos activos.")
-
