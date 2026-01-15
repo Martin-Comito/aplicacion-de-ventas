@@ -1,0 +1,6 @@
+streamlit
+supabase
+pandas
+pytz
+extra-streamlit-components
+google-generativeai>=0.8.3
