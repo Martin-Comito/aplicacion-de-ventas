@@ -189,7 +189,7 @@ elif menu == "🧠 Crear Proyecto (IA)":
                     try:
                         p = f"Actúa como Consultor de Software. Cliente: {dat['rubro']}. Problema: {prob}. Enfoque: {enf}. Crea una propuesta comercial (Título, Diagnóstico, Solución, Funciones, Beneficios)."
                        
-                        model = genai.GenerativeModel('gemini-1.5-flash') 
+                        model = genai.GenerativeModel('gemini-1.5-pro')
                         res = model.generate_content(p)
                         st.session_state.res_ia = res.text
                         st.session_state.prob_ia = prob
@@ -241,3 +241,4 @@ elif menu == "📂 Estado de Proyectos":
                     if st.button("💾 Guardar", key=f"sv_{p['id']}"):
                         supabase.table("agencia_proyectos").update({"problema_cliente": np, "solucion_ia": ns}).eq("id", p['id']).execute()
                         st.session_state[k]=False; st.rerun()
+
