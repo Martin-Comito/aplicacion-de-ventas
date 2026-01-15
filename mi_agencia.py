@@ -11,7 +11,7 @@ import extra_streamlit_components as stx
 st.set_page_config(page_title="DevStudio Manager", page_icon="💼", layout="wide")
 
 # ==============================================================================
-# 🔐 CONEXIONES Y SECRETOS
+# 🔐 ZONA DE CONEXIONES (AQUÍ ESTÁ EL ARREGLO)
 # ==============================================================================
 
 # 1. CONEXIÓN SUPABASE
@@ -20,13 +20,18 @@ try:
     key = st.secrets["supabase"]["key"]
     supabase = create_client(url, key)
 except:
-    st.error("⚠️ Error: No se encontraron las claves de Supabase. Configura los Secrets.")
+    st.error("⚠️ Error: Falló la conexión a Supabase.")
     st.stop()
 
-# 2. CONEXIÓN GOOGLE IA
+# 2. CONEXIÓN GOOGLE IA (CON LIMPIEZA AUTOMÁTICA)
 api_key_final = None
 try:
-    api_key_final = st.secrets["google"]["api_key"]
+    # Leemos la clave de los secretos
+    raw_key = st.secrets["google"]["api_key"]
+    
+    # .strip() ELIMINA ESPACIOS O SALTOS DE LÍNEA INVISIBLES
+    api_key_final = raw_key.strip() 
+    
     genai.configure(api_key=api_key_final)
 except:
     pass 
@@ -171,7 +176,7 @@ elif menu == "📅 Agenda":
             usr = f" | {ci['agencia_usuarios']['nombre_completo']}" if ROL=='DIRECTOR' and 'agencia_usuarios' in ci else ""
             st.info(f"🕒 {dtf} | {ci['agencia_clientes']['nombre']}{usr} - {ci['motivo']}")
 
-# 3. IA (CON MODELO FLASH 1.5 - EL COMPATIBLE)
+# 3. IA (USANDO MODELO ESTÁNDAR PARA EVITAR ERROR 404)
 elif menu == "🧠 Crear Proyecto (IA)":
     st.header("✨ Consultor IA")
     if ROL == 'DIRECTOR': cli = supabase.table("agencia_clientes").select("id, nombre, empresa, rubro").execute()
@@ -192,8 +197,8 @@ elif menu == "🧠 Crear Proyecto (IA)":
                     try:
                         p = f"Actúa como Consultor de Software. Cliente: {dat['rubro']}. Problema: {prob}. Enfoque: {enf}. Crea una propuesta comercial (Título, Diagnóstico, Solución, Funciones, Beneficios)."
                         
-                        # --- SOLUCIÓN ERROR 404: USAMOS FLASH ---
-                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        # USAMOS EL MODELO CLÁSICO GEMINI-PRO (ESTABLE)
+                        model = genai.GenerativeModel('gemini-pro')
                         
                         res = model.generate_content(p)
                         st.session_state.res_ia = res.text
