@@ -197,8 +197,8 @@ elif menu == "🧠 Crear Proyecto (IA)":
                     try:
                         p = f"Actúa como Consultor de Software. Cliente: {dat['rubro']}. Problema: {prob}. Enfoque: {enf}. Crea una propuesta comercial (Título, Diagnóstico, Solución, Funciones, Beneficios)."
                         
-                        # USAMOS EL MODELO CLÁSICO GEMINI-PRO (ESTABLE)
-                        model = genai.GenerativeModel('gemini-pro')
+                        # AHORA SÍ: Usamos el modelo rápido porque ya tenemos la librería 0.8.6
+                        model = genai.GenerativeModel('gemini-1.5-flash')
                         
                         res = model.generate_content(p)
                         st.session_state.res_ia = res.text
@@ -252,3 +252,4 @@ elif menu == "📂 Estado de Proyectos":
                         supabase.table("agencia_proyectos").update({"problema_cliente": np, "solucion_ia": ns}).eq("id", p['id']).execute()
                         st.session_state[k]=False; st.rerun()
     else: st.info("No hay proyectos activos.")
+
