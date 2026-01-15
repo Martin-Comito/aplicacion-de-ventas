@@ -1,0 +1,6 @@
+streamlit
+supabase
+pandas
+google-generativeai
+pytz
+pip install extra-streamlit-components
