@@ -20,7 +20,7 @@ try:
     key = st.secrets["supabase"]["key"]
     supabase = create_client(url, key)
 except:
-    st.error("⚠️ Error: No se encontraron las claves de Supabase. Configura los Secrets en Streamlit Cloud.")
+    st.error("⚠️ Error: No se encontraron las claves de Supabase. Configura los Secrets.")
     st.stop()
 
 # 2. CONEXIÓN GOOGLE IA
@@ -29,13 +29,13 @@ try:
     api_key_final = st.secrets["google"]["api_key"]
     genai.configure(api_key=api_key_final)
 except:
-    pass # Si falla aquí, se mostrará el aviso en la barra lateral
+    pass 
 
-# 3. GESTOR DE COOKIES (Para mantener la sesión abierta)
+# 3. GESTOR DE COOKIES
 cookie_manager = stx.CookieManager()
 
 # ==============================================================================
-# 🧠 LÓGICA DE USUARIOS Y SESIÓN
+# 🧠 LÓGICA DE USUARIOS
 # ==============================================================================
 
 def login_check(user, password):
@@ -46,7 +46,6 @@ def login_check(user, password):
     except: return None
 
 def get_user_from_cookie():
-    # Pequeña pausa para asegurar carga de componentes
     time_module.sleep(0.1)
     cookie_user = cookie_manager.get('agencia_user')
     if cookie_user:
@@ -54,10 +53,8 @@ def get_user_from_cookie():
         if res.data: return res.data[0]
     return None
 
-# Inicializar sesión
 if 'usuario' not in st.session_state: st.session_state.usuario = None
 
-# Auto-login
 if st.session_state.usuario is None:
     user_cookie = get_user_from_cookie()
     if user_cookie: st.session_state.usuario = user_cookie
@@ -68,11 +65,9 @@ if st.session_state.usuario is None:
     with c2:
         st.write(""); st.write("")
         st.markdown("<h1 style='text-align: center;'>🚀 DevStudio</h1>", unsafe_allow_html=True)
-        st.markdown("<h3 style='text-align: center;'>Acceso al Portal</h3>", unsafe_allow_html=True)
         with st.container(border=True):
             user_input = st.text_input("Usuario")
             pass_input = st.text_input("Contraseña", type="password")
-            
             if st.button("INGRESAR", type="primary", use_container_width=True):
                 user_data = login_check(user_input, pass_input)
                 if user_data:
@@ -80,7 +75,7 @@ if st.session_state.usuario is None:
                     cookie_manager.set('agencia_user', user_data['username'], expires_at=datetime.now() + pd.Timedelta(days=7))
                     st.toast(f"Hola {user_data['nombre_completo']}")
                     time_module.sleep(1); st.rerun()
-                else: st.error("Credenciales incorrectas")
+                else: st.error("Datos incorrectos")
     st.stop()
 
 # ==============================================================================
@@ -97,18 +92,14 @@ with st.sidebar:
     st.divider()
     menu = st.radio("Menú", ["📇 Mis Clientes", "📅 Agenda", "🧠 Crear Proyecto (IA)", "📂 Estado de Proyectos"])
     st.divider()
-    
     if api_key_final: st.success("🤖 IA Activa")
     else: st.warning("⚠️ IA Inactiva")
-
     st.divider()
     if st.button("Cerrar Sesión"):
         cookie_manager.delete('agencia_user')
         st.session_state.usuario = None; st.rerun()
 
-# ------------------------------------------------------------------------------
 # 1. CLIENTES
-# ------------------------------------------------------------------------------
 if menu == "📇 Mis Clientes":
     st.header("📇 Gestión de Clientes")
     with st.expander("➕ Agregar Nuevo Cliente"):
@@ -121,7 +112,6 @@ if menu == "📇 Mis Clientes":
             dire = c1.text_input("Dirección")
             email = c2.text_input("Email")
             notas = st.text_area("Notas")
-            
             if st.form_submit_button("Guardar"):
                 if nombre and empresa:
                     try:
@@ -131,9 +121,8 @@ if menu == "📇 Mis Clientes":
                         }).execute()
                         st.success("Guardado"); time_module.sleep(1); st.rerun()
                     except Exception as e: st.error(f"Error: {e}")
-                else: st.warning("Datos faltantes")
+                else: st.error("Faltan datos")
 
-    st.subheader("Directorio")
     if ROL == 'DIRECTOR':
         res = supabase.table("agencia_clientes").select("*, agencia_usuarios(nombre_completo)").order("created_at", desc=True).execute()
     else:
@@ -151,9 +140,7 @@ if menu == "📇 Mis Clientes":
                     supabase.table("agencia_clientes").delete().eq("id", c['id']).execute(); st.rerun()
     else: st.info("Sin clientes.")
 
-# ------------------------------------------------------------------------------
 # 2. AGENDA
-# ------------------------------------------------------------------------------
 elif menu == "📅 Agenda":
     st.header("📅 Agenda")
     if ROL == 'DIRECTOR': cli = supabase.table("agencia_clientes").select("id, nombre, empresa").execute()
@@ -184,9 +171,7 @@ elif menu == "📅 Agenda":
             usr = f" | {ci['agencia_usuarios']['nombre_completo']}" if ROL=='DIRECTOR' and 'agencia_usuarios' in ci else ""
             st.info(f"🕒 {dtf} | {ci['agencia_clientes']['nombre']}{usr} - {ci['motivo']}")
 
-# ------------------------------------------------------------------------------
-# 3. IA (USANDO GEMINI PRO ESTÁNDAR)
-# ------------------------------------------------------------------------------
+# 3. IA (CON MODELO FLASH 1.5 - EL COMPATIBLE)
 elif menu == "🧠 Crear Proyecto (IA)":
     st.header("✨ Consultor IA")
     if ROL == 'DIRECTOR': cli = supabase.table("agencia_clientes").select("id, nombre, empresa, rubro").execute()
@@ -207,8 +192,8 @@ elif menu == "🧠 Crear Proyecto (IA)":
                     try:
                         p = f"Actúa como Consultor de Software. Cliente: {dat['rubro']}. Problema: {prob}. Enfoque: {enf}. Crea una propuesta comercial (Título, Diagnóstico, Solución, Funciones, Beneficios)."
                         
-                        # --- USAMOS GEMINI PRO (Versión estable) ---
-                        model = genai.GenerativeModel('gemini-pro')
+                        # --- SOLUCIÓN ERROR 404: USAMOS FLASH ---
+                        model = genai.GenerativeModel('gemini-1.5-flash')
                         
                         res = model.generate_content(p)
                         st.session_state.res_ia = res.text
@@ -228,9 +213,7 @@ elif menu == "🧠 Crear Proyecto (IA)":
                     st.success("Guardado"); del st.session_state.res_ia
     else: st.warning("Carga clientes primero")
 
-# ------------------------------------------------------------------------------
 # 4. PROYECTOS
-# ------------------------------------------------------------------------------
 elif menu == "📂 Estado de Proyectos":
     st.header("📂 Pipeline")
     if ROL == 'DIRECTOR': proys = supabase.table("agencia_proyectos").select("*, agencia_clientes(empresa), agencia_usuarios(nombre_completo)").order("created_at", desc=True).execute()
