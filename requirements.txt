@@ -1,6 +1,6 @@
 streamlit
 supabase
 pandas
-google-generativeai
 pytz
 extra-streamlit-components
+google-generativeai>=0.8.3
